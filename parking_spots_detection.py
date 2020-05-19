@@ -176,6 +176,7 @@ for c in contours:
     if min_area < area < max_area:
         x2, y2, w2, h2 = cv2.boundingRect(c)
         ROI = overlay[y2:y2 + h2, x2:x2 + h2]
+        cv2.imwrite('ROI_{}.png'.format(image_number), ROI)
         cv2.rectangle(overlay, (x2, y2), (x2 + w2, y2 + h2), (0, 255, 0), -1)
         image_number += 1
 
