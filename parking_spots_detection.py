@@ -111,7 +111,7 @@ file_path = filedialog.askopenfilename(title="Choose an image", filetypes=[('ima
 input_image = cv2.imread(file_path)
 input_aux = input_image.copy()
 # show image
-cv2.imshow('Input', input_image)
+#cv2.imshow('Input', input_image)
 
 # Applying Gaussian blur to the input_image
 blurred = cv2.GaussianBlur(input_image, (3, 3), 0)
@@ -159,6 +159,13 @@ thresh = cv2.threshold(sharpen, 10, 255, cv2.THRESH_BINARY_INV)[1]
 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
 close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=5)
 
+erode = cv2.erode(close, kernel, iterations=2)
+dilate = cv2.dilate(erode, kernel, iterations=2)
+
+dilate = ~dilate
+num_labels, labels_im = cv2.connectedComponents(dilate)
+#cv2.imshow('out algorithms', dilate)
+
 # Apply the contour finding algorithm
 contours = cv2.findContours(close, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 contours = contours[0] if len(contours) == 2 else contours[1]
@@ -175,14 +182,32 @@ for c in contours:
     area = cv2.contourArea(c)
     if min_area < area < max_area:
         x2, y2, w2, h2 = cv2.boundingRect(c)
-        ROI = overlay[y2:y2 + h2, x2:x2 + h2]
-        cv2.imwrite('ROI_{}.png'.format(image_number), ROI)
-        cv2.rectangle(overlay, (x2, y2), (x2 + w2, y2 + h2), (0, 255, 0), -1)
+        cv2.rectangle(overlay, (x2, y2), (x2 + w2, y2 + h2), (0, 255, 0), 1)
         image_number += 1
+
+
+connectivity = 4
+output = cv2.connectedComponentsWithStats(dilate, connectivity, cv2.CV_32S)
+
+num_labels = output[0]
+labels = output[1]
+stats = output[2]
+
+free = overlay.copy()
+
+for label in range(1, num_labels):
+    blob_area = stats[label, cv2.CC_STAT_AREA]
+    blob_width = stats[label, cv2.CC_STAT_WIDTH]
+    blob_height = stats[label, cv2.CC_STAT_HEIGHT]
+    if 2000 <= blob_area <= 3000:
+        mask = np.array(labels, dtype=np.uint8)
+        free[labels == label] = (0, 255, 0)
+        #cv2.imshow('component', mask)
+
 
 # apply the overlay to the final image
 alpha = 0.2
-cv2.addWeighted(src1=overlay, alpha=alpha, src2=input_image, beta=1 - alpha, gamma=0, dst=input_image)
+cv2.addWeighted(src1=free, alpha=alpha, src2=input_image, beta=1 - alpha, gamma=0, dst=input_image)
 
 # Displaying the final output image
 cv2.imshow('Output', input_image)
