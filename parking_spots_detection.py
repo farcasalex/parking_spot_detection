@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 
-# converts a BGR image to a Grayscale image
+# Converts a BGR image to a Grayscale image
 def convert_to_grayscale(image):
     return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -43,7 +43,7 @@ class Point:
         self.y = y
 
 
-# point q lies on line segment 'pr'
+# Point q lies on line segment 'pr'
 def on_segment(p, q, r):
     if ((q.x <= max(p.x, r.x)) and (q.x >= min(p.x, r.x)) and
             (q.y <= max(p.y, r.y)) and (q.y >= min(p.y, r.y))):
@@ -106,12 +106,13 @@ def do_intersect(p1, q1, p2, q2):
 root = tk.Tk()
 root.withdraw()
 
-# open file dialog and display the selected image
+# Open a file dialog and display the selected image
 file_path = filedialog.askopenfilename(title="Choose an image", filetypes=[('image files', ('.png', '.jpg'))])
 input_image = cv2.imread(file_path)
 input_aux = input_image.copy()
-# show image
-#cv2.imshow('Input', input_image)
+
+# Show image
+cv2.imshow('Input', input_image)
 
 # Applying Gaussian blur to the input_image
 blurred = cv2.GaussianBlur(input_image, (3, 3), 0)
@@ -145,6 +146,7 @@ for line in vertical_lines:
 # Start parking contour detection
 multiple_lines = cv2.HoughLinesP(image=filtered_white, rho=1, theta=np.pi / 180, threshold=145, minLineLength=20,
                                  maxLineGap=35)
+
 # Accentuate the found lines on an input image copy
 for i in range(len(multiple_lines)):
     for x1, y1, x2, y2 in multiple_lines[i]:
@@ -159,19 +161,16 @@ thresh = cv2.threshold(sharpen, 10, 255, cv2.THRESH_BINARY_INV)[1]
 kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
 close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=5)
 
+# Applying successive erosion and dilation
 erode = cv2.erode(close, kernel, iterations=2)
 dilate = cv2.dilate(erode, kernel, iterations=2)
 
 dilate = ~dilate
 num_labels, labels_im = cv2.connectedComponents(dilate)
-#cv2.imshow('out algorithms', dilate)
 
 # Apply the contour finding algorithm
 contours = cv2.findContours(close, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 contours = contours[0] if len(contours) == 2 else contours[1]
-
-# Make a copy to overlay the resulted rectangles
-overlay = input_image.copy()
 
 # Filter the found contours to keep only the largest ones
 # Apply them to the output image
@@ -182,32 +181,33 @@ for c in contours:
     area = cv2.contourArea(c)
     if min_area < area < max_area:
         x2, y2, w2, h2 = cv2.boundingRect(c)
-        cv2.rectangle(overlay, (x2, y2), (x2 + w2, y2 + h2), (0, 255, 0), 1)
+        cv2.rectangle(input_image, (x2, y2), (x2 + w2, y2 + h2), (166, 138, 81), 2)
         image_number += 1
 
-
+# Find and label the objects in the binary image
 connectivity = 4
-output = cv2.connectedComponentsWithStats(dilate, connectivity, cv2.CV_32S)
+labeled = cv2.connectedComponentsWithStats(dilate, connectivity, cv2.CV_32S)
 
-num_labels = output[0]
-labels = output[1]
-stats = output[2]
+num_labels = labeled[0]
+labels = labeled[1]
+stats = labeled[2]
 
-free = overlay.copy()
+# Make a copy to overlay the free parking spots
+overlay = input_image.copy()
 
+# Draw only the objects with an area between some image specific values
+# Change this interval to apply the algorithm on different images
 for label in range(1, num_labels):
     blob_area = stats[label, cv2.CC_STAT_AREA]
     blob_width = stats[label, cv2.CC_STAT_WIDTH]
     blob_height = stats[label, cv2.CC_STAT_HEIGHT]
     if 2000 <= blob_area <= 3000:
         mask = np.array(labels, dtype=np.uint8)
-        free[labels == label] = (0, 255, 0)
-        #cv2.imshow('component', mask)
+        overlay[labels == label] = (0, 255, 0)
 
-
-# apply the overlay to the final image
+# Apply the overlay to the final image
 alpha = 0.2
-cv2.addWeighted(src1=free, alpha=alpha, src2=input_image, beta=1 - alpha, gamma=0, dst=input_image)
+cv2.addWeighted(src1=overlay, alpha=alpha, src2=input_image, beta=1 - alpha, gamma=0, dst=input_image)
 
 # Displaying the final output image
 cv2.imshow('Output', input_image)
